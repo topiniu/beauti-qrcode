@@ -40,7 +40,7 @@ jobs:
         with:
           node-version: '18'
           registry-url: 'https://npm.pkg.github.com'
-          scope: '@yourusername'
+          scope: '@topiniu'
 
       - name: Install dependencies
         run: npm ci
