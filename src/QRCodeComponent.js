@@ -1,73 +1,112 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import anime from 'animejs/lib/anime.es.js';
 import QRCode from 'qrcode';
 
-function QRCodeComponent({ url }) {
-    const containerRef = useRef(null);
-    const [qrMatrix, setQrMatrix] = useState(null);
+const containerBaseStyle = {
+  display: 'grid',
+  margin: '20px auto',
+  padding: '12px',
+  borderRadius: '10px',
+  transition: 'box-shadow 0.5s ease-in-out',
+};
 
-    useEffect(() => {
-        // QRCode.create(url, { errorCorrectionLevel: 'H' }).then(qr => {
-        //     setQrMatrix(qr);
-        // });
-        setQrMatrix(QRCode.create(url, { errorCorrectionLevel: 'H' }).modules);
+const moduleBaseStyle = {
+  width: '100%',
+  height: '100%',
+};
 
-    }, [url]);
+function QRCodeComponent({
+  url = '',
+  errorCorrectionLevel = 'H',
+  moduleSize = 10,
+  className = '',
+  moduleClassName = '',
+  animate = true,
+}) {
+  const containerRef = useRef(null);
 
-    useEffect(() => {
-        if (containerRef.current && qrMatrix) {
-            const qrSize = qrMatrix.size;
-            const totalModules = qrSize * qrSize;
-            const center = Math.floor(qrSize / 2);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
 
-            // Clear existing divs
-            containerRef.current.innerHTML = '';
+    container.innerHTML = '';
 
-            // Set CSS variables for dynamic sizing
-            containerRef.current.style.setProperty('--qr-size', qrSize);
-            containerRef.current.style.setProperty('--qr-width', `${qrSize * 10}px`);
+    let qr;
+    try {
+      qr = QRCode.create(url || '', { errorCorrectionLevel });
+    } catch (error) {
+      console.error('Failed to create QR code', error);
+      return;
+    }
 
-            // Create divs
-            const divs = [];
-            for (let i = 0; i < totalModules; i++) {
-                const div = document.createElement('div');
-                div.className = 'qr-module';
-                const row = Math.floor(i / qrSize);
-                const col = i % qrSize;
-                div.style.backgroundColor = qrMatrix.get(col, row) ? 'black' : 'white';
-                containerRef.current.appendChild(div);
-                divs.push({ div, row, col });
-            }
+    const qrMatrix = qr.modules;
+    if (!qrMatrix) {
+      return;
+    }
 
-            // Calculate distances from the center
-            divs.forEach(({ div, row, col }) => {
-                const distance = Math.sqrt(Math.pow(row - center, 2) + Math.pow(col - center, 2));
-                div.dataset.distance = distance;
-            });
+    const qrSize = qrMatrix.size;
+    const totalModules = qrSize * qrSize;
+    const dimension = qrSize * moduleSize;
+    const center = Math.floor(qrSize / 2);
 
-            // Animate the appearance of modules
-            anime({
-                targets: '.qr-module',
-                scale: [0, 1],
-                opacity: [0, 1],
-                delay: anime.stagger(25, { from: 'center', grid: [qrSize, qrSize] }),
-                easing: 'cubicBezier(.34,1.56,.81,1.38)',
-                complete: () => {
-                    // Add a shadow to the center div
-                    // Animate the box shadow of the container after the QR code is shown
-                }
-            });
-            anime({
-                targets: '.qr-container',
-                boxShadow: ['0px 0px 0px 0px rgba(99, 99, 99, 0)', '3px 3px 9px 9px rgba(99, 99, 99, 0.5)', '0px 2px 8px 0px rgba(99, 99, 99, 0.2)'],
-                easing: 'cubicBezier(.34,1.56,.81,1.38)',
-                duration: 200,
-                delay: 80 * qrSize * qrSize / 100, // Wait for the QR code animation to complete
-            });
-        }
-    }, [qrMatrix]);
+    Object.assign(container.style, containerBaseStyle, {
+      gridTemplateColumns: `repeat(${qrSize}, 1fr)`,
+      width: `${dimension}px`,
+      height: `${dimension}px`,
+    });
 
-    return <div ref={containerRef} className="qr-container"></div>;
+    const nodes = [];
+    for (let row = 0; row < qrSize; row += 1) {
+      for (let col = 0; col < qrSize; col += 1) {
+        const module = document.createElement('div');
+        module.className = `qr-module${moduleClassName ? ` ${moduleClassName}` : ''}`;
+        Object.assign(module.style, moduleBaseStyle);
+        module.style.backgroundColor = qrMatrix.get(col, row) ? 'black' : 'white';
+        container.appendChild(module);
+        nodes.push({ node: module, row, col });
+      }
+    }
+
+    nodes.forEach(({ node, row, col }) => {
+      const distance = Math.hypot(row - center, col - center);
+      node.dataset.distance = String(distance);
+    });
+
+    if (animate) {
+      anime({
+        targets: container.querySelectorAll('.qr-module'),
+        scale: [0, 1],
+        opacity: [0, 1],
+        delay: anime.stagger(25, { from: 'center', grid: [qrSize, qrSize] }),
+        easing: 'cubicBezier(.34,1.56,.81,1.38)',
+      });
+
+      anime({
+        targets: container,
+        boxShadow: [
+          '0px 0px 0px 0px rgba(99, 99, 99, 0)',
+          '3px 3px 9px 9px rgba(99, 99, 99, 0.5)',
+          '0px 2px 8px 0px rgba(99, 99, 99, 0.2)',
+        ],
+        easing: 'cubicBezier(.34,1.56,.81,1.38)',
+        duration: 200,
+        delay: 0.8 * totalModules,
+      });
+    }
+
+    return () => {
+      container.innerHTML = '';
+    };
+  }, [url, errorCorrectionLevel, moduleSize, moduleClassName, animate]);
+
+  const containerClasses = ['qr-container'];
+  if (className) {
+    containerClasses.push(className);
+  }
+
+  return <div ref={containerRef} className={containerClasses.join(' ')} />;
 }
 
 export default QRCodeComponent;
